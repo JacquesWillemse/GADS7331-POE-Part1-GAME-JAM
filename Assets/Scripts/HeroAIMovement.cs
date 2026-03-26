@@ -247,7 +247,7 @@ public class HeroAIMovement : MonoBehaviour
         }
 
         transform.position += direction * moveDistance;
-        transform.forward = direction;
+        UpdateFacing(direction);
         _stuckTimer = 0f;
     }
 
@@ -610,5 +610,57 @@ public class HeroAIMovement : MonoBehaviour
 
         float t = Mathf.Clamp01(_heroStats.HealthPercent);
         return Mathf.Lerp(minSpeedAtZeroHealth, moveSpeed, t);
+    }
+
+    private void UpdateFacing(Vector3 fallbackDirection)
+    {
+        Transform nearestEnemy = GetNearestEnemyTransform();
+        if (nearestEnemy != null)
+        {
+            Vector3 toEnemy = nearestEnemy.position - transform.position;
+            toEnemy.y = 0f;
+            if (toEnemy.sqrMagnitude > 0.0001f)
+            {
+                transform.forward = toEnemy.normalized;
+                return;
+            }
+        }
+
+        if (fallbackDirection.sqrMagnitude > 0.0001f)
+        {
+            transform.forward = fallbackDirection.normalized;
+        }
+    }
+
+    private Transform GetNearestEnemyTransform()
+    {
+        GameObject[] enemies = GameObject.FindGameObjectsWithTag(enemyTag);
+        if (enemies == null || enemies.Length == 0)
+        {
+            return null;
+        }
+
+        Transform nearest = null;
+        float nearestSqrDist = float.MaxValue;
+        Vector3 heroPos = transform.position;
+
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            if (enemies[i] == null)
+            {
+                continue;
+            }
+
+            Vector3 delta = enemies[i].transform.position - heroPos;
+            delta.y = 0f;
+            float sqrDist = delta.sqrMagnitude;
+            if (sqrDist < nearestSqrDist)
+            {
+                nearestSqrDist = sqrDist;
+                nearest = enemies[i].transform;
+            }
+        }
+
+        return nearest;
     }
 }

@@ -26,8 +26,9 @@ public class RoundManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI gauntletPromptText;
     [SerializeField] private TextMeshProUGUI nextRoundCountdownText;
     [SerializeField] private Button startNextRoundButton;
+    [SerializeField] private TextMeshProUGUI startNextRoundButtonText;
     [SerializeField] private string preRoundStartText = "Start Gauntlet";
-    [SerializeField] private string betweenRoundPromptText = "Next Round";
+    [SerializeField] private string betweenRoundPromptText = "Start Next Round";
 
     private bool _roundInProgress;
     private int _completedRounds;
@@ -240,6 +241,11 @@ public class RoundManager : MonoBehaviour
         bool showButton = !_roundInProgress && _completedRounds < totalRounds;
         startNextRoundButton.gameObject.SetActive(showButton);
         startNextRoundButton.interactable = showButton;
+
+        if (startNextRoundButtonText != null)
+        {
+            startNextRoundButtonText.text = _completedRounds == 0 ? preRoundStartText : betweenRoundPromptText;
+        }
     }
 
     private void ResetBetweenRoundTimer()

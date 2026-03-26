@@ -25,6 +25,8 @@ public class EnemyHealth : MonoBehaviour
             HeroStats.Instance.AddMoney(moneyReward);
         }
 
+        FloatingMoneyPopup.Spawn(transform.position, moneyReward);
+
         Destroy(gameObject);
     }
 }

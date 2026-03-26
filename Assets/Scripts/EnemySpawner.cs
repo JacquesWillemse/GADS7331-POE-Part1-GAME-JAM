@@ -13,6 +13,20 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private float maxSpawnInterval = 1.5f;
     [SerializeField] private int maxAliveEnemies = 50;
 
+    [Header("Clump Spawning")]
+    [SerializeField] private bool enableClumpSpawns = true;
+    [SerializeField, Range(0f, 1f)] private float clumpSpawnChance = 0.25f;
+    [SerializeField] private int clumpMinSize = 3;
+    [SerializeField] private int clumpMaxSize = 5;
+    [SerializeField] private float clumpRadius = 2f;
+
+    [Header("Grounding")]
+    [SerializeField] private LayerMask groundLayers = ~0;
+    [SerializeField] private float groundRayStartHeight = 25f;
+    [SerializeField] private float groundRayDistance = 200f;
+    [SerializeField] private float spawnVerticalOffset = 0f;
+    [SerializeField] private float[] spawnVerticalOffsetByType = new float[3];
+
     private bool _isSpawningRound;
     private int _remainingToSpawn;
     private int[] _remainingByType;
@@ -41,14 +55,14 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        bool spawned = SpawnOneEnemy();
-        if (!spawned)
+        int spawnedCount = SpawnTick();
+        if (spawnedCount <= 0)
         {
             _spawnTimer = 0.1f;
             return;
         }
 
-        _remainingToSpawn--;
+        _remainingToSpawn -= spawnedCount;
         _spawnTimer = Random.Range(minSpawnInterval, maxSpawnInterval);
 
         if (_remainingToSpawn <= 0)
@@ -57,21 +71,78 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
-    private bool SpawnOneEnemy()
+    private int SpawnTick()
+    {
+        bool canClump = enableClumpSpawns
+            && _remainingToSpawn >= clumpMinSize
+            && Random.value <= clumpSpawnChance;
+
+        if (canClump)
+        {
+            return SpawnClump();
+        }
+
+        return SpawnSingle();
+    }
+
+    private int SpawnSingle()
     {
         Transform spawnPoint = GetRandomSpawnPoint();
         if (spawnPoint == null)
         {
-            return false;
+            return 0;
         }
 
-        GameObject prefab = GetRandomEnemyPrefabForCurrentRound();
+        return SpawnEnemyAt(spawnPoint.position, spawnPoint.rotation) ? 1 : 0;
+    }
+
+    private int SpawnClump()
+    {
+        Transform spawnPoint = GetFurthestSpawnPointFromHero();
+        if (spawnPoint == null)
+        {
+            return SpawnSingle();
+        }
+
+        int desiredSize = Random.Range(clumpMinSize, clumpMaxSize + 1);
+        desiredSize = Mathf.Min(desiredSize, _remainingToSpawn);
+
+        if (maxAliveEnemies > 0)
+        {
+            int room = Mathf.Max(0, maxAliveEnemies - CountAliveEnemies());
+            desiredSize = Mathf.Min(desiredSize, room);
+        }
+
+        if (desiredSize <= 0)
+        {
+            return 0;
+        }
+
+        int spawned = 0;
+        for (int i = 0; i < desiredSize; i++)
+        {
+            Vector2 offset2D = Random.insideUnitCircle * clumpRadius;
+            Vector3 spawnPos = spawnPoint.position + new Vector3(offset2D.x, 0f, offset2D.y);
+            if (SpawnEnemyAt(spawnPos, spawnPoint.rotation))
+            {
+                spawned++;
+            }
+        }
+
+        return spawned;
+    }
+
+    private bool SpawnEnemyAt(Vector3 position, Quaternion rotation)
+    {
+        int typeIndex;
+        GameObject prefab = GetRandomEnemyPrefabForCurrentRound(out typeIndex);
         if (prefab == null)
         {
             return false;
         }
 
-        GameObject enemy = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
+        GameObject enemy = Instantiate(prefab, position, rotation);
+        GroundSpawnedEnemy(enemy, position, typeIndex);
 
         EnemyMover mover = enemy.GetComponent<EnemyMover>();
         if (mover != null && heroTarget != null)
@@ -80,6 +151,98 @@ public class EnemySpawner : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void GroundSpawnedEnemy(GameObject enemy, Vector3 requestedPosition, int typeIndex)
+    {
+        if (enemy == null)
+        {
+            return;
+        }
+
+        Vector3 rayStart = requestedPosition + Vector3.up * groundRayStartHeight;
+        if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore))
+        {
+            return;
+        }
+
+        // First place near ground, then align the actual lowest bound to ground height.
+        float typeOffset = GetTypeVerticalOffset(typeIndex);
+        float totalOffset = spawnVerticalOffset + typeOffset;
+        Vector3 groundedPos = hit.point + Vector3.up * totalOffset;
+        enemy.transform.position = groundedPos;
+
+        float lowestY = GetLowestWorldY(enemy);
+        if (!float.IsNaN(lowestY))
+        {
+            float desiredMinY = hit.point.y + totalOffset;
+            float correction = desiredMinY - lowestY;
+            enemy.transform.position += Vector3.up * correction;
+        }
+    }
+
+    private float GetTypeVerticalOffset(int typeIndex)
+    {
+        if (spawnVerticalOffsetByType == null || typeIndex < 0 || typeIndex >= spawnVerticalOffsetByType.Length)
+        {
+            return 0f;
+        }
+
+        return spawnVerticalOffsetByType[typeIndex];
+    }
+
+    private float GetLowestWorldY(GameObject enemy)
+    {
+        Collider[] colliders = enemy.GetComponentsInChildren<Collider>(true);
+        if (colliders != null && colliders.Length > 0)
+        {
+            float minY = float.MaxValue;
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                if (colliders[i] == null || !colliders[i].enabled)
+                {
+                    continue;
+                }
+
+                float colliderMinY = colliders[i].bounds.min.y;
+                if (colliderMinY < minY)
+                {
+                    minY = colliderMinY;
+                }
+            }
+
+            if (minY != float.MaxValue)
+            {
+                return minY;
+            }
+        }
+
+        // Fallback to renderer bounds if colliders are missing/misaligned.
+        Renderer[] renderers = enemy.GetComponentsInChildren<Renderer>(true);
+        if (renderers != null && renderers.Length > 0)
+        {
+            float minY = float.MaxValue;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] == null || !renderers[i].enabled)
+                {
+                    continue;
+                }
+
+                float rendererMinY = renderers[i].bounds.min.y;
+                if (rendererMinY < minY)
+                {
+                    minY = rendererMinY;
+                }
+            }
+
+            if (minY != float.MaxValue)
+            {
+                return minY;
+            }
+        }
+
+        return float.NaN;
     }
 
     private Transform GetRandomSpawnPoint()
@@ -115,6 +278,36 @@ public class EnemySpawner : MonoBehaviour
         }
 
         return null;
+    }
+
+    private Transform GetFurthestSpawnPointFromHero()
+    {
+        if (heroTarget == null)
+        {
+            return GetRandomSpawnPoint();
+        }
+
+        Transform furthest = null;
+        float furthestSqrDist = float.MinValue;
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            Transform point = spawnPoints[i];
+            if (point == null)
+            {
+                continue;
+            }
+
+            Vector3 delta = point.position - heroTarget.position;
+            delta.y = 0f;
+            float sqrDist = delta.sqrMagnitude;
+            if (sqrDist > furthestSqrDist)
+            {
+                furthestSqrDist = sqrDist;
+                furthest = point;
+            }
+        }
+
+        return furthest;
     }
 
     private bool HasValidSpawnPoint()
@@ -246,8 +439,9 @@ public class EnemySpawner : MonoBehaviour
         return null;
     }
 
-    private GameObject GetRandomEnemyPrefabForCurrentRound()
+    private GameObject GetRandomEnemyPrefabForCurrentRound(out int selectedTypeIndex)
     {
+        selectedTypeIndex = -1;
         if (_remainingByType == null || _remainingByType.Length == 0)
         {
             return GetRandomEnemyPrefab();
@@ -278,6 +472,7 @@ public class EnemySpawner : MonoBehaviour
             if (pick == 0)
             {
                 _remainingByType[i]--;
+                selectedTypeIndex = i;
                 return GetEnemyPrefabByTypeIndex(i);
             }
 

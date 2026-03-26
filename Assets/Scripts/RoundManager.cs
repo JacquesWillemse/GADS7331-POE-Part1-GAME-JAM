@@ -10,11 +10,12 @@ public class RoundManager : MonoBehaviour
     [Header("Round Config")]
     [SerializeField] private EnemySpawner enemySpawner;
     [SerializeField] private int totalRounds = 50;
-    [SerializeField] private int type1StartingEnemies = 2;
-    [SerializeField] private int type1IncreasePerRound = 2;
-    [SerializeField] private int type2StartingEnemies = 0;
-    [SerializeField] private int type2IncreaseEveryNRounds = 5;
-    [SerializeField] private int type2IncreaseAmount = 1;
+    [SerializeField] private int budgetPerRoundStep = 5;
+    [SerializeField] private int smallEnemyCost = 2;
+    [SerializeField] private int mediumEnemyCost = 4;
+    [SerializeField] private int largeEnemyCost = 10;
+    [SerializeField] private int mediumUnlockRound = 21;
+    [SerializeField] private int largeUnlockRound = 41;
     [SerializeField] private float nextRoundAutoStartSeconds = 30f;
 
     [Header("UI")]
@@ -33,6 +34,8 @@ public class RoundManager : MonoBehaviour
     private int _activeRoundNumber;
     private float _betweenRoundCountdownRemaining;
     private int _lastCountdownDisplay = -1;
+    private int[] _nextRoundSpawnPlan;
+    private int _nextRoundSpawnPlanNumber = -1;
 
     private void Awake()
     {
@@ -102,7 +105,7 @@ public class RoundManager : MonoBehaviour
         }
 
         int roundNumber = _completedRounds + 1;
-        int[] enemyCounts = GetEnemyCountsForRound(roundNumber);
+        int[] enemyCounts = GetOrCreateSpawnPlanForRound(roundNumber);
 
         bool started = enemySpawner.TryStartRound(enemyCounts);
         if (!started)
@@ -113,25 +116,80 @@ public class RoundManager : MonoBehaviour
 
         _activeRoundNumber = roundNumber;
         _roundInProgress = true;
+        _nextRoundSpawnPlan = null;
+        _nextRoundSpawnPlanNumber = -1;
         _betweenRoundCountdownRemaining = 0f;
         _lastCountdownDisplay = -1;
         UpdateCountdownUI();
         UpdateButtonState();
     }
 
-    private int[] GetEnemyCountsForRound(int roundNumber)
+    private int[] GetOrCreateSpawnPlanForRound(int roundNumber)
     {
-        int type1Count = type1StartingEnemies + (roundNumber - 1) * type1IncreasePerRound;
-        int type2Count = type2StartingEnemies;
-        if (type2IncreaseEveryNRounds > 0)
+        if (_nextRoundSpawnPlan != null && _nextRoundSpawnPlanNumber == roundNumber)
         {
-            type2Count += ((roundNumber - 1) / type2IncreaseEveryNRounds) * type2IncreaseAmount;
+            return _nextRoundSpawnPlan;
         }
 
-        int[] counts = new int[2];
-        counts[0] = Mathf.Max(0, type1Count);
-        counts[1] = Mathf.Max(0, type2Count);
+        int[] counts = BuildSpawnPlan(roundNumber);
+        _nextRoundSpawnPlan = counts;
+        _nextRoundSpawnPlanNumber = roundNumber;
         return counts;
+    }
+
+    private int[] BuildSpawnPlan(int roundNumber)
+    {
+        int budget = Mathf.Max(0, roundNumber * budgetPerRoundStep);
+        int[] costs = new int[3] { Mathf.Max(1, smallEnemyCost), Mathf.Max(1, mediumEnemyCost), Mathf.Max(1, largeEnemyCost) };
+        bool allowMedium = roundNumber >= mediumUnlockRound;
+        bool allowLarge = roundNumber >= largeUnlockRound;
+
+        int[] counts = new int[3];
+        int[] allowedTypes = allowLarge ? new int[3] { 0, 1, 2 } : (allowMedium ? new int[2] { 0, 1 } : new int[1] { 0 });
+
+        int safety = 0;
+        while (budget >= costs[0] && safety < 2000)
+        {
+            safety++;
+            int[] affordable = GetAffordableTypes(allowedTypes, costs, budget);
+            if (affordable.Length == 0)
+            {
+                break;
+            }
+
+            int pick = affordable[Random.Range(0, affordable.Length)];
+            counts[pick]++;
+            budget -= costs[pick];
+        }
+
+        return counts;
+    }
+
+    private int[] GetAffordableTypes(int[] allowedTypes, int[] costs, int budget)
+    {
+        int count = 0;
+        for (int i = 0; i < allowedTypes.Length; i++)
+        {
+            int type = allowedTypes[i];
+            if (type >= 0 && type < costs.Length && costs[type] <= budget)
+            {
+                count++;
+            }
+        }
+
+        int[] affordable = new int[count];
+        int at = 0;
+        for (int i = 0; i < allowedTypes.Length; i++)
+        {
+            int type = allowedTypes[i];
+            if (type >= 0 && type < costs.Length && costs[type] <= budget)
+            {
+                affordable[at] = type;
+                at++;
+            }
+        }
+
+        return affordable;
     }
 
     private void UpdateRoundUI()
@@ -147,11 +205,13 @@ public class RoundManager : MonoBehaviour
         int nextRound = _completedRounds + 1;
         int nextType1Count = 0;
         int nextType2Count = 0;
+        int nextType3Count = 0;
         if (nextRound <= totalRounds)
         {
-            int[] counts = GetEnemyCountsForRound(nextRound);
+            int[] counts = GetOrCreateSpawnPlanForRound(nextRound);
             nextType1Count = counts.Length > 0 ? counts[0] : 0;
             nextType2Count = counts.Length > 1 ? counts[1] : 0;
+            nextType3Count = counts.Length > 2 ? counts[2] : 0;
         }
 
         if (nextEnemyType1Text != null)
@@ -166,7 +226,7 @@ public class RoundManager : MonoBehaviour
 
         if (nextEnemyType3Text != null)
         {
-            nextEnemyType3Text.text = "0";
+            nextEnemyType3Text.text = nextType3Count.ToString();
         }
     }
 

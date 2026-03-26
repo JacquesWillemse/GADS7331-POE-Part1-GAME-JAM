@@ -197,17 +197,17 @@ public class SupportUIController : MonoBehaviour
 
         if (healthText != null)
         {
-            healthText.text = $"Health: {heroStats.Health}";
+            healthText.text = $"Health: {heroStats.Health}/{heroStats.MaxHealth}";
         }
 
         if (ammoText != null)
         {
-            ammoText.text = $"Ammo: {heroStats.Ammo}";
+            ammoText.text = $"Ammo: {heroStats.Ammo}/{heroStats.MaxAmmo}";
         }
 
         if (armorText != null)
         {
-            armorText.text = $"Armor: {heroStats.Armor}";
+            armorText.text = $"Armor: {heroStats.Armor}/{heroStats.MaxArmor}";
         }
 
         if (damageBuffInfoText != null)

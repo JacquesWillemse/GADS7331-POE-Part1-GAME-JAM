@@ -11,12 +11,19 @@ public class HeroStats : MonoBehaviour
     [SerializeField] private int startingAmmo = 60;
     [SerializeField] private int startingArmor = 0;
     [SerializeField] private int startingBonusDamage = 0;
+    [SerializeField] private int maxHealth = 100;
+    [SerializeField] private int maxArmor = 100;
+    [SerializeField] private int maxAmmo = 150;
 
     public int Money { get; private set; }
     public int Health { get; private set; }
     public int Ammo { get; private set; }
     public int Armor { get; private set; }
     public int BonusDamage { get; private set; }
+    public int MaxHealth => maxHealth;
+    public int MaxArmor => maxArmor;
+    public int MaxAmmo => maxAmmo;
+    public float HealthPercent => maxHealth > 0 ? (float)Health / maxHealth : 0f;
 
     public event Action OnStatsChanged;
 
@@ -30,9 +37,9 @@ public class HeroStats : MonoBehaviour
 
         Instance = this;
         Money = startingMoney;
-        Health = startingHealth;
-        Ammo = startingAmmo;
-        Armor = startingArmor;
+        Health = Mathf.Clamp(startingHealth, 0, maxHealth);
+        Ammo = Mathf.Clamp(startingAmmo, 0, maxAmmo);
+        Armor = Mathf.Clamp(startingArmor, 0, maxArmor);
         BonusDamage = startingBonusDamage;
         NotifyStatsChanged();
     }
@@ -78,6 +85,7 @@ public class HeroStats : MonoBehaviour
         }
 
         Ammo -= amount;
+        Ammo = Mathf.Clamp(Ammo, 0, maxAmmo);
         NotifyStatsChanged();
         return true;
     }
@@ -89,7 +97,7 @@ public class HeroStats : MonoBehaviour
             return;
         }
 
-        Ammo += amount;
+        Ammo = Mathf.Clamp(Ammo + amount, 0, maxAmmo);
         NotifyStatsChanged();
     }
 
@@ -104,13 +112,13 @@ public class HeroStats : MonoBehaviour
         if (Armor > 0)
         {
             int absorbed = Mathf.Min(Armor, remainingDamage);
-            Armor -= absorbed;
+            Armor = Mathf.Clamp(Armor - absorbed, 0, maxArmor);
             remainingDamage -= absorbed;
         }
 
         if (remainingDamage > 0)
         {
-            Health = Mathf.Max(Health - remainingDamage, 0);
+            Health = Mathf.Clamp(Health - remainingDamage, 0, maxHealth);
         }
 
         NotifyStatsChanged();
@@ -123,7 +131,7 @@ public class HeroStats : MonoBehaviour
             return;
         }
 
-        Health += amount;
+        Health = Mathf.Clamp(Health + amount, 0, maxHealth);
         NotifyStatsChanged();
     }
 
@@ -134,7 +142,7 @@ public class HeroStats : MonoBehaviour
             return;
         }
 
-        Armor += amount;
+        Armor = Mathf.Clamp(Armor + amount, 0, maxArmor);
         NotifyStatsChanged();
     }
 

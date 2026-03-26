@@ -9,6 +9,7 @@ public class HeroAIMovement : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 4f;
+    [SerializeField] private float minSpeedAtZeroHealth = 1.5f;
     [SerializeField] private float repathInterval = 0.25f;
     [SerializeField] private float arriveDistance = 0.2f;
 
@@ -21,6 +22,9 @@ public class HeroAIMovement : MonoBehaviour
     [SerializeField] private int criticalAmmoThreshold = 8;
     [SerializeField] private int lowArmorThreshold = 20;
     [SerializeField] private int criticalArmorThreshold = 8;
+    [SerializeField] private float pickupAvoidanceRadius = 3f;
+    [SerializeField] private float pickupAvoidanceStrength = 1.5f;
+    [SerializeField] private float pickupApproachStep = 2.5f;
 
     [Header("Safe Point Search")]
     [SerializeField] private float searchRadius = 4f;
@@ -84,8 +88,9 @@ public class HeroAIMovement : MonoBehaviour
         {
             Vector3 pickupPos = pickupTarget.transform.position;
             pickupPos.y = heroPos.y;
-            _currentDestination = pickupPos;
-            _lastBestCandidate = pickupPos;
+            Vector3 approachPos = GetPickupApproachDestination(heroPos, pickupPos, threats);
+            _currentDestination = approachPos;
+            _lastBestCandidate = approachPos;
             _debugSelectedPickup = pickupTarget;
             return;
         }
@@ -225,7 +230,8 @@ public class HeroAIMovement : MonoBehaviour
         }
 
         Vector3 direction = toTarget.normalized;
-        float moveDistance = moveSpeed * Time.deltaTime;
+        float currentSpeed = GetCurrentMoveSpeed();
+        float moveDistance = currentSpeed * Time.deltaTime;
         Vector3 castOrigin = current + Vector3.up * 0.5f;
 
         // Stop before moving into an obstacle.
@@ -537,5 +543,72 @@ public class HeroAIMovement : MonoBehaviour
         t = Mathf.Clamp01(t);
         Vector3 closest = a + ab * t;
         return Vector3.Distance(point, closest);
+    }
+
+    private Vector3 GetPickupApproachDestination(Vector3 heroPos, Vector3 pickupPos, Transform[] threats)
+    {
+        if (threats == null || threats.Length == 0)
+        {
+            return pickupPos;
+        }
+
+        Vector3 toPickup = pickupPos - heroPos;
+        toPickup.y = 0f;
+        if (toPickup.sqrMagnitude <= 0.001f)
+        {
+            return pickupPos;
+        }
+
+        Vector3 desiredDir = toPickup.normalized;
+        Vector3 avoidForce = Vector3.zero;
+
+        for (int i = 0; i < threats.Length; i++)
+        {
+            if (threats[i] == null)
+            {
+                continue;
+            }
+
+            Vector3 toEnemy = threats[i].position - heroPos;
+            toEnemy.y = 0f;
+            float dist = toEnemy.magnitude;
+            if (dist <= 0.001f || dist > pickupAvoidanceRadius)
+            {
+                continue;
+            }
+
+            float weight = (pickupAvoidanceRadius - dist) / pickupAvoidanceRadius;
+            avoidForce += (-toEnemy.normalized) * weight;
+        }
+
+        Vector3 steeredDir = desiredDir;
+        if (avoidForce.sqrMagnitude > 0.0001f)
+        {
+            steeredDir = (desiredDir + avoidForce.normalized * pickupAvoidanceStrength).normalized;
+        }
+
+        float remainingDistance = toPickup.magnitude;
+        float step = Mathf.Min(pickupApproachStep, remainingDistance);
+        Vector3 candidate = heroPos + steeredDir * step;
+        candidate.y = heroPos.y;
+
+        // If the steered point is blocked, fall back to direct pickup destination.
+        if (IsCandidateBlocked(candidate) || IsPathBlocked(heroPos, candidate))
+        {
+            return pickupPos;
+        }
+
+        return candidate;
+    }
+
+    private float GetCurrentMoveSpeed()
+    {
+        if (_heroStats == null)
+        {
+            return moveSpeed;
+        }
+
+        float t = Mathf.Clamp01(_heroStats.HealthPercent);
+        return Mathf.Lerp(minSpeedAtZeroHealth, moveSpeed, t);
     }
 }

@@ -263,6 +263,21 @@ public class RoundManager : MonoBehaviour
 
     private void UpdateCountdownUI()
     {
+        if (_completedRounds == 0 && !_roundInProgress)
+        {
+            if (gauntletPromptText != null)
+            {
+                gauntletPromptText.text = preRoundStartText;
+            }
+
+            if (nextRoundCountdownText != null)
+            {
+                nextRoundCountdownText.text = string.Empty;
+            }
+
+            return;
+        }
+
         if (_roundInProgress)
         {
             if (gauntletPromptText != null)

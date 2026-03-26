@@ -3,6 +3,7 @@ using UnityEngine;
 public class EnemyHealth : MonoBehaviour
 {
     [SerializeField] private int maxHealth = 3;
+    [SerializeField] private int moneyReward = 5;
 
     private int _currentHealth;
 
@@ -17,6 +18,11 @@ public class EnemyHealth : MonoBehaviour
         if (_currentHealth > 0)
         {
             return;
+        }
+
+        if (HeroStats.Instance != null)
+        {
+            HeroStats.Instance.AddMoney(moneyReward);
         }
 
         Destroy(gameObject);

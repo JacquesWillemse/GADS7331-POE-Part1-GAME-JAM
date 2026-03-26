@@ -128,7 +128,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b72939db32889e44cb2109641ef79aa1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  maxHealth: 3
+  maxHealth: 1
+  moneyReward: 5
 --- !u!114 &6699739888389483887
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -144,3 +145,4 @@ MonoBehaviour:
   heroTarget: {fileID: 0}
   moveSpeed: 3.5
   stopDistance: 0.1
+  contactDamage: 10

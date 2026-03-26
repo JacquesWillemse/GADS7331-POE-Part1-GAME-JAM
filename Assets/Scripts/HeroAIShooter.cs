@@ -12,8 +12,19 @@ public class HeroAIShooter : MonoBehaviour
     [SerializeField] private float shotsPerSecond = 2f;
     [SerializeField] private float projectileSpeed = 12f;
     [SerializeField] private int projectileDamage = 1;
+    [SerializeField] private int ammoPerShot = 1;
 
     private float _nextShotTime;
+    private HeroStats _heroStats;
+
+    private void Awake()
+    {
+        _heroStats = GetComponent<HeroStats>();
+        if (_heroStats == null)
+        {
+            _heroStats = HeroStats.Instance;
+        }
+    }
 
     private void Update()
     {
@@ -74,6 +85,11 @@ public class HeroAIShooter : MonoBehaviour
     private void Fire(Transform target)
     {
         if (projectilePrefab == null || firePoint == null || target == null)
+        {
+            return;
+        }
+
+        if (_heroStats != null && !_heroStats.TryUseAmmo(ammoPerShot))
         {
             return;
         }

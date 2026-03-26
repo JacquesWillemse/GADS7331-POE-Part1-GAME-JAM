@@ -103,6 +103,12 @@ public class HeroAIShooter : MonoBehaviour
 
         Quaternion rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         Projectile projectile = Instantiate(projectilePrefab, firePoint.position, rotation);
-        projectile.Initialize(projectileDamage, projectileSpeed, direction.normalized);
+        int shotDamage = projectileDamage;
+        if (_heroStats != null)
+        {
+            shotDamage = Mathf.Max(1, Mathf.RoundToInt(projectileDamage * _heroStats.CurrentDamageMultiplier));
+        }
+
+        projectile.Initialize(shotDamage, projectileSpeed, direction.normalized);
     }
 }

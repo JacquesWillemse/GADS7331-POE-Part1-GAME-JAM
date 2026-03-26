@@ -11,21 +11,14 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private float minSpawnInterval = 0.5f;
     [SerializeField] private float maxSpawnInterval = 1.5f;
     [SerializeField] private int maxAliveEnemies = 50;
-    [SerializeField] private bool autoStart = true;
 
-    private bool _isSpawning;
-
-    private void Start()
-    {
-        if (autoStart)
-        {
-            StartSpawning();
-        }
-    }
+    private bool _isSpawningRound;
+    private int _remainingToSpawn;
+    private float _spawnTimer;
 
     private void Update()
     {
-        if (!_isSpawning)
+        if (!_isSpawningRound)
         {
             return;
         }
@@ -40,7 +33,6 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        float interval = Random.Range(minSpawnInterval, maxSpawnInterval);
         _spawnTimer -= Time.deltaTime;
         if (_spawnTimer > 0f)
         {
@@ -48,20 +40,13 @@ public class EnemySpawner : MonoBehaviour
         }
 
         SpawnOneEnemy();
-        _spawnTimer = interval;
-    }
+        _remainingToSpawn--;
+        _spawnTimer = Random.Range(minSpawnInterval, maxSpawnInterval);
 
-    private float _spawnTimer;
-
-    public void StartSpawning()
-    {
-        _isSpawning = true;
-        _spawnTimer = 0f;
-    }
-
-    public void StopSpawning()
-    {
-        _isSpawning = false;
+        if (_remainingToSpawn <= 0)
+        {
+            _isSpawningRound = false;
+        }
     }
 
     private void SpawnOneEnemy()
@@ -132,5 +117,23 @@ public class EnemySpawner : MonoBehaviour
     private int CountAliveEnemies()
     {
         return GameObject.FindGameObjectsWithTag("Enemy").Length;
+    }
+
+    public bool TryStartRound(int enemyCount)
+    {
+        if (enemyCount <= 0 || enemyPrefab == null || !HasValidSpawnPoint())
+        {
+            return false;
+        }
+
+        _remainingToSpawn = enemyCount;
+        _spawnTimer = 0f;
+        _isSpawningRound = true;
+        return true;
+    }
+
+    public bool IsRoundComplete()
+    {
+        return !_isSpawningRound && _remainingToSpawn <= 0 && CountAliveEnemies() == 0;
     }
 }

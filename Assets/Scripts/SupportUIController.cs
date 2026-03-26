@@ -8,12 +8,17 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI moneyText;
     [SerializeField] private TextMeshProUGUI healthText;
     [SerializeField] private TextMeshProUGUI ammoText;
+    [SerializeField] private TextMeshProUGUI damageBuffInfoText;
 
     [Header("Buy Costs")]
     [SerializeField] private int healthCost = 20;
     [SerializeField] private int ammoCost = 15;
-    [SerializeField] private int speedCost = 30;
+    [SerializeField] private int damageBuffCost = 30;
     [SerializeField] private int armorCost = 35;
+
+    [Header("Damage Buff")]
+    [SerializeField] private float damageBuffDurationSeconds = 30f;
+    [SerializeField] private float damageBuffMultiplier = 2f;
 
     private void Awake()
     {
@@ -51,9 +56,28 @@ public class SupportUIController : MonoBehaviour
         AttemptPurchase("Ammo", ammoCost);
     }
 
+    public void BuyDamageBuff()
+    {
+        if (heroStats == null)
+        {
+            Debug.LogWarning("No HeroStats assigned to SupportUIController.");
+            return;
+        }
+
+        if (!heroStats.TrySpendMoney(damageBuffCost))
+        {
+            Debug.LogWarning($"Insufficient funds for Damage Buff. Cost: {damageBuffCost}, Money: {heroStats.Money}");
+            return;
+        }
+
+        heroStats.ActivateDamageBuff(damageBuffDurationSeconds, damageBuffMultiplier);
+        Debug.Log($"Purchased Damage Buff for {damageBuffCost}. Active for {damageBuffDurationSeconds:0}s.");
+    }
+
+    // Backward-compatible wrapper if existing button still calls old name.
     public void BuySpeed()
     {
-        AttemptPurchase("Speed", speedCost);
+        BuyDamageBuff();
     }
 
     public void BuyArmor()
@@ -99,5 +123,12 @@ public class SupportUIController : MonoBehaviour
         {
             ammoText.text = $"Ammo: {heroStats.Ammo}";
         }
+
+        if (damageBuffInfoText != null)
+        {
+            string state = heroStats.IsDamageBuffActive ? "ON" : "OFF";
+            damageBuffInfoText.text = $"Damage Buff: {state}";
+        }
+
     }
 }

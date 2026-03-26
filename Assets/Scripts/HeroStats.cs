@@ -9,12 +9,20 @@ public class HeroStats : MonoBehaviour
     [SerializeField] private int startingMoney = 0;
     [SerializeField] private int startingHealth = 100;
     [SerializeField] private int startingAmmo = 60;
+    [SerializeField] private float defaultDamageMultiplier = 1f;
 
     public int Money { get; private set; }
     public int Health { get; private set; }
     public int Ammo { get; private set; }
+    public float CurrentDamageMultiplier => _damageBuffActive ? _damageBuffMultiplier : defaultDamageMultiplier;
+    public bool IsDamageBuffActive => _damageBuffActive;
+    public int DamageBuffSecondsRemaining => Mathf.CeilToInt(_damageBuffRemainingSeconds);
 
     public event Action OnStatsChanged;
+    private bool _damageBuffActive;
+    private float _damageBuffMultiplier;
+    private float _damageBuffRemainingSeconds;
+    private int _lastBroadcastBuffSeconds = -1;
 
     private void Awake()
     {
@@ -28,6 +36,33 @@ public class HeroStats : MonoBehaviour
         Money = startingMoney;
         Health = startingHealth;
         Ammo = startingAmmo;
+        _damageBuffMultiplier = defaultDamageMultiplier;
+        NotifyStatsChanged();
+    }
+
+    private void Update()
+    {
+        if (!_damageBuffActive)
+        {
+            return;
+        }
+
+        _damageBuffRemainingSeconds = Mathf.Max(0f, _damageBuffRemainingSeconds - Time.deltaTime);
+        int remainingSeconds = DamageBuffSecondsRemaining;
+        if (remainingSeconds != _lastBroadcastBuffSeconds)
+        {
+            _lastBroadcastBuffSeconds = remainingSeconds;
+            NotifyStatsChanged();
+        }
+
+        if (_damageBuffRemainingSeconds > 0f)
+        {
+            return;
+        }
+
+        _damageBuffActive = false;
+        _damageBuffMultiplier = defaultDamageMultiplier;
+        _lastBroadcastBuffSeconds = 0;
         NotifyStatsChanged();
     }
 
@@ -95,6 +130,20 @@ public class HeroStats : MonoBehaviour
         }
 
         Health = Mathf.Max(Health - amount, 0);
+        NotifyStatsChanged();
+    }
+
+    public void ActivateDamageBuff(float durationSeconds, float multiplier)
+    {
+        if (durationSeconds <= 0f || multiplier <= 0f)
+        {
+            return;
+        }
+
+        _damageBuffActive = true;
+        _damageBuffMultiplier = multiplier;
+        _damageBuffRemainingSeconds = Mathf.Max(_damageBuffRemainingSeconds, durationSeconds);
+        _lastBroadcastBuffSeconds = -1;
         NotifyStatsChanged();
     }
 

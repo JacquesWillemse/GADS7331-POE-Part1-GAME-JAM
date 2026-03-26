@@ -10,15 +10,20 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI ammoText;
     [SerializeField] private TextMeshProUGUI damageBuffInfoText;
 
+    [Header("Pickup Prefabs")]
+    [SerializeField] private GameObject healthPickupPrefab;
+    [SerializeField] private GameObject ammoPickupPrefab;
+    [SerializeField] private GameObject damageBuffPickupPrefab;
+    [SerializeField] private GameObject armorPickupPrefab;
+
+    [Header("Pickup Spawn Points")]
+    [SerializeField] private Transform[] pickupSpawnPoints = new Transform[4];
+
     [Header("Buy Costs")]
     [SerializeField] private int healthCost = 20;
     [SerializeField] private int ammoCost = 15;
     [SerializeField] private int damageBuffCost = 30;
     [SerializeField] private int armorCost = 35;
-
-    [Header("Damage Buff")]
-    [SerializeField] private float damageBuffDurationSeconds = 30f;
-    [SerializeField] private float damageBuffMultiplier = 2f;
 
     private void Awake()
     {
@@ -48,30 +53,17 @@ public class SupportUIController : MonoBehaviour
 
     public void BuyHealth()
     {
-        AttemptPurchase("Health", healthCost);
+        AttemptPurchaseAndSpawn("Health", healthCost, healthPickupPrefab);
     }
 
     public void BuyAmmo()
     {
-        AttemptPurchase("Ammo", ammoCost);
+        AttemptPurchaseAndSpawn("Ammo", ammoCost, ammoPickupPrefab);
     }
 
     public void BuyDamageBuff()
     {
-        if (heroStats == null)
-        {
-            Debug.LogWarning("No HeroStats assigned to SupportUIController.");
-            return;
-        }
-
-        if (!heroStats.TrySpendMoney(damageBuffCost))
-        {
-            Debug.LogWarning($"Insufficient funds for Damage Buff. Cost: {damageBuffCost}, Money: {heroStats.Money}");
-            return;
-        }
-
-        heroStats.ActivateDamageBuff(damageBuffDurationSeconds, damageBuffMultiplier);
-        Debug.Log($"Purchased Damage Buff for {damageBuffCost}. Active for {damageBuffDurationSeconds:0}s.");
+        AttemptPurchaseAndSpawn("Damage Buff", damageBuffCost, damageBuffPickupPrefab);
     }
 
     // Backward-compatible wrapper if existing button still calls old name.
@@ -82,10 +74,10 @@ public class SupportUIController : MonoBehaviour
 
     public void BuyArmor()
     {
-        AttemptPurchase("Armor", armorCost);
+        AttemptPurchaseAndSpawn("Armor", armorCost, armorPickupPrefab);
     }
 
-    private void AttemptPurchase(string purchaseName, int cost)
+    private void AttemptPurchaseAndSpawn(string pickupName, int cost, GameObject pickupPrefab)
     {
         if (heroStats == null)
         {
@@ -93,13 +85,62 @@ public class SupportUIController : MonoBehaviour
             return;
         }
 
-        if (!heroStats.TrySpendMoney(cost))
+        if (pickupPrefab == null)
         {
-            Debug.LogWarning($"Insufficient funds for {purchaseName}. Cost: {cost}, Money: {heroStats.Money}");
+            Debug.LogWarning($"No pickup prefab assigned for {pickupName}.");
             return;
         }
 
-        Debug.Log($"Purchased {purchaseName} for {cost}.");
+        Transform spawnPoint = GetRandomSpawnPoint();
+        if (spawnPoint == null)
+        {
+            Debug.LogWarning("No valid pickup spawn points assigned.");
+            return;
+        }
+
+        if (!heroStats.TrySpendMoney(cost))
+        {
+            Debug.LogWarning($"Insufficient funds for {pickupName}. Cost: {cost}, Money: {heroStats.Money}");
+            return;
+        }
+
+        Instantiate(pickupPrefab, spawnPoint.position, spawnPoint.rotation);
+        Debug.Log($"Spawned {pickupName} pickup for {cost} at {spawnPoint.name}.");
+    }
+
+    private Transform GetRandomSpawnPoint()
+    {
+        int validCount = 0;
+        for (int i = 0; i < pickupSpawnPoints.Length; i++)
+        {
+            if (pickupSpawnPoints[i] != null)
+            {
+                validCount++;
+            }
+        }
+
+        if (validCount == 0)
+        {
+            return null;
+        }
+
+        int pick = Random.Range(0, validCount);
+        for (int i = 0; i < pickupSpawnPoints.Length; i++)
+        {
+            if (pickupSpawnPoints[i] == null)
+            {
+                continue;
+            }
+
+            if (pick == 0)
+            {
+                return pickupSpawnPoints[i];
+            }
+
+            pick--;
+        }
+
+        return null;
     }
 
     private void RefreshInfoUI()

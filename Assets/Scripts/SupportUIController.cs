@@ -8,6 +8,7 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI moneyText;
     [SerializeField] private TextMeshProUGUI healthText;
     [SerializeField] private TextMeshProUGUI ammoText;
+    [SerializeField] private TextMeshProUGUI armorText;
     [SerializeField] private TextMeshProUGUI damageBuffInfoText;
 
     [Header("Pickup Prefabs")]
@@ -24,6 +25,13 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private int ammoCost = 15;
     [SerializeField] private int damageBuffCost = 30;
     [SerializeField] private int armorCost = 35;
+
+    [Header("Pickup Values")]
+    [SerializeField] private int healthPickupAmount = 25;
+    [SerializeField] private int ammoPickupAmount = 20;
+    [SerializeField] private int armorPickupAmount = 20;
+    [SerializeField] private float damageBuffDurationSeconds = 30f;
+    [SerializeField] private float damageBuffMultiplier = 2f;
 
     private void Awake()
     {
@@ -53,17 +61,17 @@ public class SupportUIController : MonoBehaviour
 
     public void BuyHealth()
     {
-        AttemptPurchaseAndSpawn("Health", healthCost, healthPickupPrefab);
+        AttemptPurchaseAndSpawn("Health", healthCost, healthPickupPrefab, PickupType.Health, healthPickupAmount);
     }
 
     public void BuyAmmo()
     {
-        AttemptPurchaseAndSpawn("Ammo", ammoCost, ammoPickupPrefab);
+        AttemptPurchaseAndSpawn("Ammo", ammoCost, ammoPickupPrefab, PickupType.Ammo, ammoPickupAmount);
     }
 
     public void BuyDamageBuff()
     {
-        AttemptPurchaseAndSpawn("Damage Buff", damageBuffCost, damageBuffPickupPrefab);
+        AttemptPurchaseAndSpawn("Damage Buff", damageBuffCost, damageBuffPickupPrefab, PickupType.DamageBuff, 0);
     }
 
     // Backward-compatible wrapper if existing button still calls old name.
@@ -74,10 +82,10 @@ public class SupportUIController : MonoBehaviour
 
     public void BuyArmor()
     {
-        AttemptPurchaseAndSpawn("Armor", armorCost, armorPickupPrefab);
+        AttemptPurchaseAndSpawn("Armor", armorCost, armorPickupPrefab, PickupType.Armor, armorPickupAmount);
     }
 
-    private void AttemptPurchaseAndSpawn(string pickupName, int cost, GameObject pickupPrefab)
+    private void AttemptPurchaseAndSpawn(string pickupName, int cost, GameObject pickupPrefab, PickupType pickupType, int amount)
     {
         if (heroStats == null)
         {
@@ -104,7 +112,14 @@ public class SupportUIController : MonoBehaviour
             return;
         }
 
-        Instantiate(pickupPrefab, spawnPoint.position, spawnPoint.rotation);
+        GameObject spawnedPickup = Instantiate(pickupPrefab, spawnPoint.position, spawnPoint.rotation);
+        PickupItem pickupItem = spawnedPickup.GetComponent<PickupItem>();
+        if (pickupItem == null)
+        {
+            pickupItem = spawnedPickup.AddComponent<PickupItem>();
+        }
+
+        pickupItem.Configure(pickupType, amount, damageBuffDurationSeconds, damageBuffMultiplier);
         Debug.Log($"Spawned {pickupName} pickup for {cost} at {spawnPoint.name}.");
     }
 
@@ -163,6 +178,11 @@ public class SupportUIController : MonoBehaviour
         if (ammoText != null)
         {
             ammoText.text = $"Ammo: {heroStats.Ammo}";
+        }
+
+        if (armorText != null)
+        {
+            armorText.text = $"Armor: {heroStats.Armor}";
         }
 
         if (damageBuffInfoText != null)

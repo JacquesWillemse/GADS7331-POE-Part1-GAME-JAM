@@ -9,11 +9,13 @@ public class HeroStats : MonoBehaviour
     [SerializeField] private int startingMoney = 0;
     [SerializeField] private int startingHealth = 100;
     [SerializeField] private int startingAmmo = 60;
+    [SerializeField] private int startingArmor = 0;
     [SerializeField] private float defaultDamageMultiplier = 1f;
 
     public int Money { get; private set; }
     public int Health { get; private set; }
     public int Ammo { get; private set; }
+    public int Armor { get; private set; }
     public float CurrentDamageMultiplier => _damageBuffActive ? _damageBuffMultiplier : defaultDamageMultiplier;
     public bool IsDamageBuffActive => _damageBuffActive;
     public int DamageBuffSecondsRemaining => Mathf.CeilToInt(_damageBuffRemainingSeconds);
@@ -36,6 +38,7 @@ public class HeroStats : MonoBehaviour
         Money = startingMoney;
         Health = startingHealth;
         Ammo = startingAmmo;
+        Armor = startingArmor;
         _damageBuffMultiplier = defaultDamageMultiplier;
         NotifyStatsChanged();
     }
@@ -129,7 +132,41 @@ public class HeroStats : MonoBehaviour
             return;
         }
 
-        Health = Mathf.Max(Health - amount, 0);
+        int remainingDamage = amount;
+        if (Armor > 0)
+        {
+            int absorbed = Mathf.Min(Armor, remainingDamage);
+            Armor -= absorbed;
+            remainingDamage -= absorbed;
+        }
+
+        if (remainingDamage > 0)
+        {
+            Health = Mathf.Max(Health - remainingDamage, 0);
+        }
+
+        NotifyStatsChanged();
+    }
+
+    public void AddHealth(int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        Health += amount;
+        NotifyStatsChanged();
+    }
+
+    public void AddArmor(int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        Armor += amount;
         NotifyStatsChanged();
     }
 
@@ -145,6 +182,30 @@ public class HeroStats : MonoBehaviour
         _damageBuffRemainingSeconds = Mathf.Max(_damageBuffRemainingSeconds, durationSeconds);
         _lastBroadcastBuffSeconds = -1;
         NotifyStatsChanged();
+    }
+
+    public void ApplyPickup(PickupItem pickup)
+    {
+        if (pickup == null)
+        {
+            return;
+        }
+
+        switch (pickup.PickupType)
+        {
+            case PickupType.Health:
+                AddHealth(pickup.Amount);
+                break;
+            case PickupType.Ammo:
+                AddAmmo(pickup.Amount);
+                break;
+            case PickupType.Armor:
+                AddArmor(pickup.Amount);
+                break;
+            case PickupType.DamageBuff:
+                ActivateDamageBuff(pickup.BuffDurationSeconds, pickup.BuffMultiplier);
+                break;
+        }
     }
 
     private void NotifyStatsChanged()

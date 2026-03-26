@@ -12,6 +12,16 @@ public class HeroAIMovement : MonoBehaviour
     [SerializeField] private float repathInterval = 0.25f;
     [SerializeField] private float arriveDistance = 0.2f;
 
+    [Header("Pickup Priority")]
+    [SerializeField] private float pickupDetectionRange = 30f;
+    [SerializeField] private float safePickupEnemyDistance = 1.6f;
+    [SerializeField] private int lowHealthThreshold = 50;
+    [SerializeField] private int criticalHealthThreshold = 25;
+    [SerializeField] private int lowAmmoThreshold = 20;
+    [SerializeField] private int criticalAmmoThreshold = 8;
+    [SerializeField] private int lowArmorThreshold = 20;
+    [SerializeField] private int criticalArmorThreshold = 8;
+
     [Header("Safe Point Search")]
     [SerializeField] private float searchRadius = 4f;
     [SerializeField] private int candidateDirections = 16;
@@ -38,9 +48,19 @@ public class HeroAIMovement : MonoBehaviour
     private float _nextRepathTime;
     private Vector3 _lastBestCandidate;
     private float _stuckTimer;
+    private HeroStats _heroStats;
+    private PickupItem _debugSelectedPickup;
+    private string _debugPickupDecision = "None";
+    private bool _debugPickupPathSafe;
 
     private void Start()
     {
+        _heroStats = GetComponent<HeroStats>();
+        if (_heroStats == null)
+        {
+            _heroStats = HeroStats.Instance;
+        }
+
         _currentDestination = transform.position;
     }
 
@@ -59,6 +79,20 @@ public class HeroAIMovement : MonoBehaviour
     {
         Vector3 heroPos = transform.position;
         Transform[] threats = GetNearbyEnemies();
+        PickupItem pickupTarget = ChoosePickupTarget(heroPos, threats);
+        if (pickupTarget != null)
+        {
+            Vector3 pickupPos = pickupTarget.transform.position;
+            pickupPos.y = heroPos.y;
+            _currentDestination = pickupPos;
+            _lastBestCandidate = pickupPos;
+            _debugSelectedPickup = pickupTarget;
+            return;
+        }
+        _debugSelectedPickup = null;
+        _debugPickupDecision = "No pickup target";
+        _debugPickupPathSafe = false;
+
         if (threats.Length == 0)
         {
             SetCenterDestinationIfNeeded(heroPos);
@@ -298,10 +332,20 @@ public class HeroAIMovement : MonoBehaviour
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.white;
+        Gizmos.DrawWireSphere(transform.position, pickupDetectionRange);
 
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(_lastBestCandidate, 0.3f);
         Gizmos.DrawLine(transform.position, _lastBestCandidate);
+
+        if (_debugSelectedPickup != null)
+        {
+            Vector3 pickupPos = _debugSelectedPickup.transform.position;
+            Gizmos.color = _debugPickupPathSafe ? Color.blue : new Color(1f, 0.5f, 0f);
+            Gizmos.DrawWireSphere(pickupPos, 0.45f);
+            Gizmos.DrawLine(transform.position, pickupPos);
+        }
 
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position + Vector3.up * 0.5f, obstacleCheckRadius);
@@ -311,5 +355,187 @@ public class HeroAIMovement : MonoBehaviour
             Gizmos.color = Color.magenta;
             Gizmos.DrawWireSphere(arenaCenter.position, 0.4f);
         }
+    }
+
+    private void OnGUI()
+    {
+        if (!drawDebug)
+        {
+            return;
+        }
+
+        GUI.color = Color.white;
+        GUI.Label(new Rect(10f, 10f, 550f, 24f), $"Hero pickup decision: {_debugPickupDecision}");
+    }
+
+    private PickupItem ChoosePickupTarget(Vector3 heroPos, Transform[] threats)
+    {
+        PickupItem[] pickups = FindObjectsByType<PickupItem>(FindObjectsSortMode.None);
+        if (pickups.Length == 0 || _heroStats == null)
+        {
+            _debugPickupDecision = "No pickups in scene";
+            return null;
+        }
+
+        PickupItem best = null;
+        float bestScore = float.NegativeInfinity;
+        bool enemiesNearby = threats.Length > 0;
+
+        for (int i = 0; i < pickups.Length; i++)
+        {
+            PickupItem pickup = pickups[i];
+            if (pickup == null)
+            {
+                continue;
+            }
+
+            Vector3 pickupPos = pickup.transform.position;
+            pickupPos.y = heroPos.y;
+            float distToPickup = Vector3.Distance(heroPos, pickupPos);
+            if (distToPickup > pickupDetectionRange)
+            {
+                continue;
+            }
+
+            float needScore = GetNeedScore(pickup.PickupType);
+            bool criticalNeed = IsCriticalNeed(pickup.PickupType);
+            bool safePath = !IsPathBlocked(heroPos, pickupPos) && !IsPathNearEnemy(heroPos, pickupPos, threats, safePickupEnemyDistance);
+
+            if (enemiesNearby && !safePath && !criticalNeed)
+            {
+                continue;
+            }
+
+            float minEnemyDistAtPickup = GetMinDistanceToThreats(pickupPos, threats);
+            float safetyScore = enemiesNearby ? minEnemyDistAtPickup : 5f;
+            float pathSafetyBonus = safePath ? 10f : -15f;
+
+            float score = (needScore * 2f) + safetyScore + pathSafetyBonus - (distToPickup * 0.35f);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = pickup;
+                _debugPickupPathSafe = safePath;
+                _debugPickupDecision = criticalNeed
+                    ? $"Critical {pickup.PickupType}"
+                    : $"Best {pickup.PickupType}";
+            }
+        }
+
+        if (best == null)
+        {
+            _debugPickupDecision = enemiesNearby
+                ? "Threats too close to pickups"
+                : "No valid pickup in range";
+            _debugPickupPathSafe = false;
+        }
+
+        return best;
+    }
+
+    private float GetNeedScore(PickupType pickupType)
+    {
+        switch (pickupType)
+        {
+            case PickupType.Health:
+                if (_heroStats.Health <= criticalHealthThreshold) return 100f;
+                if (_heroStats.Health <= lowHealthThreshold) return 45f;
+                return 6f;
+            case PickupType.Ammo:
+                if (_heroStats.Ammo <= criticalAmmoThreshold) return 95f;
+                if (_heroStats.Ammo <= lowAmmoThreshold) return 40f;
+                return 6f;
+            case PickupType.Armor:
+                if (_heroStats.Armor <= criticalArmorThreshold) return 80f;
+                if (_heroStats.Armor <= lowArmorThreshold) return 35f;
+                return 5f;
+            case PickupType.DamageBuff:
+                return _heroStats.IsDamageBuffActive ? 4f : 24f;
+            default:
+                return 0f;
+        }
+    }
+
+    private bool IsCriticalNeed(PickupType pickupType)
+    {
+        switch (pickupType)
+        {
+            case PickupType.Health:
+                return _heroStats.Health <= criticalHealthThreshold;
+            case PickupType.Ammo:
+                return _heroStats.Ammo <= criticalAmmoThreshold;
+            case PickupType.Armor:
+                return _heroStats.Armor <= criticalArmorThreshold;
+            default:
+                return false;
+        }
+    }
+
+    private float GetMinDistanceToThreats(Vector3 point, Transform[] threats)
+    {
+        if (threats == null || threats.Length == 0)
+        {
+            return 999f;
+        }
+
+        float minDist = float.MaxValue;
+        for (int i = 0; i < threats.Length; i++)
+        {
+            if (threats[i] == null)
+            {
+                continue;
+            }
+
+            Vector3 threatPos = threats[i].position;
+            threatPos.y = point.y;
+            float dist = Vector3.Distance(point, threatPos);
+            if (dist < minDist)
+            {
+                minDist = dist;
+            }
+        }
+
+        return minDist;
+    }
+
+    private bool IsPathNearEnemy(Vector3 from, Vector3 to, Transform[] threats, float dangerDistance)
+    {
+        if (threats == null || threats.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < threats.Length; i++)
+        {
+            if (threats[i] == null)
+            {
+                continue;
+            }
+
+            Vector3 threatPos = threats[i].position;
+            threatPos.y = from.y;
+            float dist = DistancePointToSegment(threatPos, from, to);
+            if (dist < dangerDistance)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private float DistancePointToSegment(Vector3 point, Vector3 a, Vector3 b)
+    {
+        Vector3 ab = b - a;
+        float abLenSq = ab.sqrMagnitude;
+        if (abLenSq <= 0.0001f)
+        {
+            return Vector3.Distance(point, a);
+        }
+
+        float t = Vector3.Dot(point - a, ab) / abLenSq;
+        t = Mathf.Clamp01(t);
+        Vector3 closest = a + ab * t;
+        return Vector3.Distance(point, closest);
     }
 }

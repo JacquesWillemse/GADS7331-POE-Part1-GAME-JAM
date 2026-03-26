@@ -1958,7 +1958,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 226, y: -33}
+  m_AnchoredPosition: {x: 256, y: -33}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &488505370
@@ -3280,6 +3280,7 @@ GameObject:
   - component: {fileID: 1001631032}
   - component: {fileID: 1001631037}
   - component: {fileID: 1001631038}
+  - component: {fileID: 1001631039}
   m_Layer: 0
   m_Name: Hero
   m_TagString: Untagged
@@ -3419,7 +3420,7 @@ MonoBehaviour:
   startingHealth: 100
   startingAmmo: 100
   startingArmor: 0
-  defaultDamageMultiplier: 1
+  startingBonusDamage: 0
 --- !u!114 &1001631038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3462,6 +3463,33 @@ MonoBehaviour:
   arenaCenter: {fileID: 1350278323}
   centerReturnDistance: 1.5
   drawDebug: 1
+--- !u!54 &1001631039
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1001631031}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1 &1003645082
 GameObject:
   m_ObjectHideFlags: 0
@@ -3800,6 +3828,11 @@ MonoBehaviour:
   ammoText: {fileID: 1445904627}
   armorText: {fileID: 342447991}
   damageBuffInfoText: {fileID: 665792507}
+  buyHealthButtonText: {fileID: 712553657}
+  buyAmmoButtonText: {fileID: 297234523}
+  buyDamageBuffButtonText: {fileID: 1440326079}
+  buyArmorButtonText: {fileID: 1391424656}
+  roundManager: {fileID: 0}
   healthPickupPrefab: {fileID: 5575899447305539869, guid: 94a9b38e7308d194691bfcf4a1999d77, type: 3}
   ammoPickupPrefab: {fileID: 6922321816208010459, guid: 5fb66a2d22c23454ba0af26f9f86d4d8, type: 3}
   damageBuffPickupPrefab: {fileID: 8447835913337994565, guid: 560951cd765fdfa4284a1d1be64124e7, type: 3}
@@ -3816,8 +3849,7 @@ MonoBehaviour:
   healthPickupAmount: 25
   ammoPickupAmount: 20
   armorPickupAmount: 20
-  damageBuffDurationSeconds: 30
-  damageBuffMultiplier: 2
+  damageBuffPickupAmount: 1
 --- !u!1 &1143051449
 GameObject:
   m_ObjectHideFlags: 0
@@ -4629,7 +4661,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 66, y: 0}
+  m_AnchoredPosition: {x: 122, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1499512838
@@ -4718,7 +4750,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 241.3612, w: 0}
+  m_margin: {x: -124.74567, y: 0, z: 241.3612, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -5535,15 +5567,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RoundManager
   enemySpawner: {fileID: 31058258}
   totalRounds: 50
-  startingEnemies: 2
-  enemiesIncreasePerRound: 2
+  type1StartingEnemies: 2
+  type1IncreasePerRound: 2
+  type2StartingEnemies: 0
+  type2IncreaseEveryNRounds: 5
+  type2IncreaseAmount: 1
   nextRoundAutoStartSeconds: 30
   roundCounterText: {fileID: 484873665}
   nextEnemyType1Text: {fileID: 725837804}
   nextEnemyType2Text: {fileID: 814908298}
   nextEnemyType3Text: {fileID: 1702418567}
+  gauntletPromptText: {fileID: 1499512838}
   nextRoundCountdownText: {fileID: 488505370}
   startNextRoundButton: {fileID: 617272167}
+  preRoundStartText: Start Gauntlet
+  betweenRoundPromptText: Next Round
 --- !u!4 &2064386262
 Transform:
   m_ObjectHideFlags: 0

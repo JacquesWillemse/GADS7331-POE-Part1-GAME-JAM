@@ -15,6 +15,7 @@ public class EnemySpawner : MonoBehaviour
 
     private bool _isSpawningRound;
     private int _remainingToSpawn;
+    private int[] _remainingByType;
     private float _spawnTimer;
 
     private void Update()
@@ -40,7 +41,13 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        SpawnOneEnemy();
+        bool spawned = SpawnOneEnemy();
+        if (!spawned)
+        {
+            _spawnTimer = 0.1f;
+            return;
+        }
+
         _remainingToSpawn--;
         _spawnTimer = Random.Range(minSpawnInterval, maxSpawnInterval);
 
@@ -50,18 +57,18 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
-    private void SpawnOneEnemy()
+    private bool SpawnOneEnemy()
     {
         Transform spawnPoint = GetRandomSpawnPoint();
         if (spawnPoint == null)
         {
-            return;
+            return false;
         }
 
-        GameObject prefab = GetRandomEnemyPrefab();
+        GameObject prefab = GetRandomEnemyPrefabForCurrentRound();
         if (prefab == null)
         {
-            return;
+            return false;
         }
 
         GameObject enemy = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
@@ -71,6 +78,8 @@ public class EnemySpawner : MonoBehaviour
         {
             mover.SetTarget(heroTarget);
         }
+
+        return true;
     }
 
     private Transform GetRandomSpawnPoint()
@@ -128,12 +137,31 @@ public class EnemySpawner : MonoBehaviour
 
     public bool TryStartRound(int enemyCount)
     {
-        if (enemyCount <= 0 || !HasValidEnemyPrefab() || !HasValidSpawnPoint())
+        int[] singleTypeCounts = new int[1];
+        singleTypeCounts[0] = enemyCount;
+        return TryStartRound(singleTypeCounts);
+    }
+
+    public bool TryStartRound(int[] enemyCountsByType)
+    {
+        if (enemyCountsByType == null || enemyCountsByType.Length == 0 || !HasValidEnemyPrefab() || !HasValidSpawnPoint())
         {
             return false;
         }
 
-        _remainingToSpawn = enemyCount;
+        _remainingByType = new int[Mathf.Max(enemyCountsByType.Length, 1)];
+        _remainingToSpawn = 0;
+        for (int i = 0; i < enemyCountsByType.Length; i++)
+        {
+            _remainingByType[i] = Mathf.Max(0, enemyCountsByType[i]);
+            _remainingToSpawn += _remainingByType[i];
+        }
+
+        if (_remainingToSpawn <= 0)
+        {
+            return false;
+        }
+
         _spawnTimer = 0f;
         _isSpawningRound = true;
         return true;
@@ -196,5 +224,66 @@ public class EnemySpawner : MonoBehaviour
         }
 
         return enemyPrefab;
+    }
+
+    private GameObject GetEnemyPrefabByTypeIndex(int typeIndex)
+    {
+        if (typeIndex == 0)
+        {
+            if (enemyPrefabs != null && enemyPrefabs.Length > 0 && enemyPrefabs[0] != null)
+            {
+                return enemyPrefabs[0];
+            }
+
+            return enemyPrefab;
+        }
+
+        if (enemyPrefabs != null && typeIndex >= 0 && typeIndex < enemyPrefabs.Length)
+        {
+            return enemyPrefabs[typeIndex];
+        }
+
+        return null;
+    }
+
+    private GameObject GetRandomEnemyPrefabForCurrentRound()
+    {
+        if (_remainingByType == null || _remainingByType.Length == 0)
+        {
+            return GetRandomEnemyPrefab();
+        }
+
+        int eligibleTypes = 0;
+        for (int i = 0; i < _remainingByType.Length; i++)
+        {
+            if (_remainingByType[i] > 0 && GetEnemyPrefabByTypeIndex(i) != null)
+            {
+                eligibleTypes++;
+            }
+        }
+
+        if (eligibleTypes == 0)
+        {
+            return GetRandomEnemyPrefab();
+        }
+
+        int pick = Random.Range(0, eligibleTypes);
+        for (int i = 0; i < _remainingByType.Length; i++)
+        {
+            if (_remainingByType[i] <= 0 || GetEnemyPrefabByTypeIndex(i) == null)
+            {
+                continue;
+            }
+
+            if (pick == 0)
+            {
+                _remainingByType[i]--;
+                return GetEnemyPrefabByTypeIndex(i);
+            }
+
+            pick--;
+        }
+
+        return GetRandomEnemyPrefab();
     }
 }

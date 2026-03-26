@@ -10,6 +10,11 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI ammoText;
     [SerializeField] private TextMeshProUGUI armorText;
     [SerializeField] private TextMeshProUGUI damageBuffInfoText;
+    [SerializeField] private TextMeshProUGUI buyHealthButtonText;
+    [SerializeField] private TextMeshProUGUI buyAmmoButtonText;
+    [SerializeField] private TextMeshProUGUI buyDamageBuffButtonText;
+    [SerializeField] private TextMeshProUGUI buyArmorButtonText;
+    [SerializeField] private RoundManager roundManager;
 
     [Header("Pickup Prefabs")]
     [SerializeField] private GameObject healthPickupPrefab;
@@ -30,8 +35,8 @@ public class SupportUIController : MonoBehaviour
     [SerializeField] private int healthPickupAmount = 25;
     [SerializeField] private int ammoPickupAmount = 20;
     [SerializeField] private int armorPickupAmount = 20;
-    [SerializeField] private float damageBuffDurationSeconds = 30f;
-    [SerializeField] private float damageBuffMultiplier = 2f;
+    [SerializeField] private int damageBuffPickupAmount = 1;
+    private bool _lastDiscountActive;
 
     private void Awake()
     {
@@ -39,6 +44,25 @@ public class SupportUIController : MonoBehaviour
         {
             heroStats = FindFirstObjectByType<HeroStats>();
         }
+
+        if (roundManager == null)
+        {
+            roundManager = FindFirstObjectByType<RoundManager>();
+        }
+
+        RefreshBuyButtonLabels();
+    }
+
+    private void Update()
+    {
+        bool discountActive = IsIntermissionDiscountActive();
+        if (discountActive == _lastDiscountActive)
+        {
+            return;
+        }
+
+        _lastDiscountActive = discountActive;
+        RefreshBuyButtonLabels();
     }
 
     private void OnEnable()
@@ -71,7 +95,7 @@ public class SupportUIController : MonoBehaviour
 
     public void BuyDamageBuff()
     {
-        AttemptPurchaseAndSpawn("Damage Buff", damageBuffCost, damageBuffPickupPrefab, PickupType.DamageBuff, 0);
+        AttemptPurchaseAndSpawn("Damage Buff", damageBuffCost, damageBuffPickupPrefab, PickupType.DamageBuff, damageBuffPickupAmount);
     }
 
     // Backward-compatible wrapper if existing button still calls old name.
@@ -106,9 +130,10 @@ public class SupportUIController : MonoBehaviour
             return;
         }
 
-        if (!heroStats.TrySpendMoney(cost))
+        int effectiveCost = GetEffectiveCost(cost);
+        if (!heroStats.TrySpendMoney(effectiveCost))
         {
-            Debug.LogWarning($"Insufficient funds for {pickupName}. Cost: {cost}, Money: {heroStats.Money}");
+            Debug.LogWarning($"Insufficient funds for {pickupName}. Cost: {effectiveCost}, Money: {heroStats.Money}");
             return;
         }
 
@@ -119,8 +144,8 @@ public class SupportUIController : MonoBehaviour
             pickupItem = spawnedPickup.AddComponent<PickupItem>();
         }
 
-        pickupItem.Configure(pickupType, amount, damageBuffDurationSeconds, damageBuffMultiplier);
-        Debug.Log($"Spawned {pickupName} pickup for {cost} at {spawnPoint.name}.");
+        pickupItem.Configure(pickupType, amount);
+        Debug.Log($"Spawned {pickupName} pickup for {effectiveCost} at {spawnPoint.name}.");
     }
 
     private Transform GetRandomSpawnPoint()
@@ -187,9 +212,51 @@ public class SupportUIController : MonoBehaviour
 
         if (damageBuffInfoText != null)
         {
-            string state = heroStats.IsDamageBuffActive ? "ON" : "OFF";
-            damageBuffInfoText.text = $"Damage Buff: {state}";
+            damageBuffInfoText.text = $"Damage Buff: +{heroStats.BonusDamage}";
         }
 
+    }
+
+    private void RefreshBuyButtonLabels()
+    {
+        int healthDisplayCost = GetEffectiveCost(healthCost);
+        int ammoDisplayCost = GetEffectiveCost(ammoCost);
+        int damageDisplayCost = GetEffectiveCost(damageBuffCost);
+        int armorDisplayCost = GetEffectiveCost(armorCost);
+
+        if (buyHealthButtonText != null)
+        {
+            buyHealthButtonText.text = $"Buy Health ({healthDisplayCost})";
+        }
+
+        if (buyAmmoButtonText != null)
+        {
+            buyAmmoButtonText.text = $"Buy Ammo ({ammoDisplayCost})";
+        }
+
+        if (buyDamageBuffButtonText != null)
+        {
+            buyDamageBuffButtonText.text = $"Buy Damage ({damageDisplayCost})";
+        }
+
+        if (buyArmorButtonText != null)
+        {
+            buyArmorButtonText.text = $"Buy Armor ({armorDisplayCost})";
+        }
+    }
+
+    private int GetEffectiveCost(int baseCost)
+    {
+        if (!IsIntermissionDiscountActive())
+        {
+            return baseCost;
+        }
+
+        return Mathf.Max(1, baseCost / 2);
+    }
+
+    private bool IsIntermissionDiscountActive()
+    {
+        return roundManager != null && roundManager.IsIntermission;
     }
 }

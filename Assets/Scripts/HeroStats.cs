@@ -10,21 +10,15 @@ public class HeroStats : MonoBehaviour
     [SerializeField] private int startingHealth = 100;
     [SerializeField] private int startingAmmo = 60;
     [SerializeField] private int startingArmor = 0;
-    [SerializeField] private float defaultDamageMultiplier = 1f;
+    [SerializeField] private int startingBonusDamage = 0;
 
     public int Money { get; private set; }
     public int Health { get; private set; }
     public int Ammo { get; private set; }
     public int Armor { get; private set; }
-    public float CurrentDamageMultiplier => _damageBuffActive ? _damageBuffMultiplier : defaultDamageMultiplier;
-    public bool IsDamageBuffActive => _damageBuffActive;
-    public int DamageBuffSecondsRemaining => Mathf.CeilToInt(_damageBuffRemainingSeconds);
+    public int BonusDamage { get; private set; }
 
     public event Action OnStatsChanged;
-    private bool _damageBuffActive;
-    private float _damageBuffMultiplier;
-    private float _damageBuffRemainingSeconds;
-    private int _lastBroadcastBuffSeconds = -1;
 
     private void Awake()
     {
@@ -39,33 +33,7 @@ public class HeroStats : MonoBehaviour
         Health = startingHealth;
         Ammo = startingAmmo;
         Armor = startingArmor;
-        _damageBuffMultiplier = defaultDamageMultiplier;
-        NotifyStatsChanged();
-    }
-
-    private void Update()
-    {
-        if (!_damageBuffActive)
-        {
-            return;
-        }
-
-        _damageBuffRemainingSeconds = Mathf.Max(0f, _damageBuffRemainingSeconds - Time.deltaTime);
-        int remainingSeconds = DamageBuffSecondsRemaining;
-        if (remainingSeconds != _lastBroadcastBuffSeconds)
-        {
-            _lastBroadcastBuffSeconds = remainingSeconds;
-            NotifyStatsChanged();
-        }
-
-        if (_damageBuffRemainingSeconds > 0f)
-        {
-            return;
-        }
-
-        _damageBuffActive = false;
-        _damageBuffMultiplier = defaultDamageMultiplier;
-        _lastBroadcastBuffSeconds = 0;
+        BonusDamage = startingBonusDamage;
         NotifyStatsChanged();
     }
 
@@ -170,17 +138,14 @@ public class HeroStats : MonoBehaviour
         NotifyStatsChanged();
     }
 
-    public void ActivateDamageBuff(float durationSeconds, float multiplier)
+    public void AddBonusDamage(int amount)
     {
-        if (durationSeconds <= 0f || multiplier <= 0f)
+        if (amount <= 0)
         {
             return;
         }
 
-        _damageBuffActive = true;
-        _damageBuffMultiplier = multiplier;
-        _damageBuffRemainingSeconds = Mathf.Max(_damageBuffRemainingSeconds, durationSeconds);
-        _lastBroadcastBuffSeconds = -1;
+        BonusDamage += amount;
         NotifyStatsChanged();
     }
 
@@ -203,7 +168,7 @@ public class HeroStats : MonoBehaviour
                 AddArmor(pickup.Amount);
                 break;
             case PickupType.DamageBuff:
-                ActivateDamageBuff(pickup.BuffDurationSeconds, pickup.BuffMultiplier);
+                AddBonusDamage(pickup.Amount);
                 break;
         }
     }

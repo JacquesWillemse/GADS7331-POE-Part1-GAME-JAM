@@ -4,11 +4,17 @@ using UnityEngine.UI;
 
 public class RoundManager : MonoBehaviour
 {
+    public bool IsRoundInProgress => _roundInProgress;
+    public bool IsIntermission => !_roundInProgress && _completedRounds > 0 && _completedRounds < totalRounds;
+
     [Header("Round Config")]
     [SerializeField] private EnemySpawner enemySpawner;
     [SerializeField] private int totalRounds = 50;
-    [SerializeField] private int startingEnemies = 2;
-    [SerializeField] private int enemiesIncreasePerRound = 2;
+    [SerializeField] private int type1StartingEnemies = 2;
+    [SerializeField] private int type1IncreasePerRound = 2;
+    [SerializeField] private int type2StartingEnemies = 0;
+    [SerializeField] private int type2IncreaseEveryNRounds = 5;
+    [SerializeField] private int type2IncreaseAmount = 1;
     [SerializeField] private float nextRoundAutoStartSeconds = 30f;
 
     [Header("UI")]
@@ -16,8 +22,11 @@ public class RoundManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI nextEnemyType1Text;
     [SerializeField] private TextMeshProUGUI nextEnemyType2Text;
     [SerializeField] private TextMeshProUGUI nextEnemyType3Text;
+    [SerializeField] private TextMeshProUGUI gauntletPromptText;
     [SerializeField] private TextMeshProUGUI nextRoundCountdownText;
     [SerializeField] private Button startNextRoundButton;
+    [SerializeField] private string preRoundStartText = "Start Gauntlet";
+    [SerializeField] private string betweenRoundPromptText = "Next Round";
 
     private bool _roundInProgress;
     private int _completedRounds;
@@ -66,6 +75,12 @@ public class RoundManager : MonoBehaviour
             return;
         }
 
+        if (_completedRounds == 0)
+        {
+            UpdateCountdownUI();
+            return;
+        }
+
         _betweenRoundCountdownRemaining = Mathf.Max(0f, _betweenRoundCountdownRemaining - Time.deltaTime);
         UpdateCountdownUI();
         if (_betweenRoundCountdownRemaining <= 0f)
@@ -87,9 +102,9 @@ public class RoundManager : MonoBehaviour
         }
 
         int roundNumber = _completedRounds + 1;
-        int enemyCount = GetEnemyCountForRound(roundNumber);
+        int[] enemyCounts = GetEnemyCountsForRound(roundNumber);
 
-        bool started = enemySpawner.TryStartRound(enemyCount);
+        bool started = enemySpawner.TryStartRound(enemyCounts);
         if (!started)
         {
             Debug.LogWarning("Round could not start. Check EnemySpawner setup.");
@@ -104,9 +119,19 @@ public class RoundManager : MonoBehaviour
         UpdateButtonState();
     }
 
-    private int GetEnemyCountForRound(int roundNumber)
+    private int[] GetEnemyCountsForRound(int roundNumber)
     {
-        return startingEnemies + (roundNumber - 1) * enemiesIncreasePerRound;
+        int type1Count = type1StartingEnemies + (roundNumber - 1) * type1IncreasePerRound;
+        int type2Count = type2StartingEnemies;
+        if (type2IncreaseEveryNRounds > 0)
+        {
+            type2Count += ((roundNumber - 1) / type2IncreaseEveryNRounds) * type2IncreaseAmount;
+        }
+
+        int[] counts = new int[2];
+        counts[0] = Mathf.Max(0, type1Count);
+        counts[1] = Mathf.Max(0, type2Count);
+        return counts;
     }
 
     private void UpdateRoundUI()
@@ -120,7 +145,14 @@ public class RoundManager : MonoBehaviour
     private void UpdateNextEnemyCounters()
     {
         int nextRound = _completedRounds + 1;
-        int nextType1Count = nextRound <= totalRounds ? GetEnemyCountForRound(nextRound) : 0;
+        int nextType1Count = 0;
+        int nextType2Count = 0;
+        if (nextRound <= totalRounds)
+        {
+            int[] counts = GetEnemyCountsForRound(nextRound);
+            nextType1Count = counts.Length > 0 ? counts[0] : 0;
+            nextType2Count = counts.Length > 1 ? counts[1] : 0;
+        }
 
         if (nextEnemyType1Text != null)
         {
@@ -129,7 +161,7 @@ public class RoundManager : MonoBehaviour
 
         if (nextEnemyType2Text != null)
         {
-            nextEnemyType2Text.text = "0";
+            nextEnemyType2Text.text = nextType2Count.ToString();
         }
 
         if (nextEnemyType3Text != null)
@@ -145,11 +177,20 @@ public class RoundManager : MonoBehaviour
             return;
         }
 
-        startNextRoundButton.interactable = !_roundInProgress && _completedRounds < totalRounds;
+        bool showButton = !_roundInProgress && _completedRounds < totalRounds;
+        startNextRoundButton.gameObject.SetActive(showButton);
+        startNextRoundButton.interactable = showButton;
     }
 
     private void ResetBetweenRoundTimer()
     {
+        if (_completedRounds == 0)
+        {
+            _betweenRoundCountdownRemaining = -1f;
+            _lastCountdownDisplay = -1;
+            return;
+        }
+
         if (_completedRounds >= totalRounds)
         {
             _betweenRoundCountdownRemaining = 0f;
@@ -162,6 +203,25 @@ public class RoundManager : MonoBehaviour
 
     private void UpdateCountdownUI()
     {
+        if (_roundInProgress)
+        {
+            if (gauntletPromptText != null)
+            {
+                gauntletPromptText.text = string.Empty;
+            }
+
+            if (nextRoundCountdownText != null)
+            {
+                nextRoundCountdownText.text = "(0)";
+            }
+            return;
+        }
+
+        if (gauntletPromptText != null)
+        {
+            gauntletPromptText.text = _completedRounds == 0 ? preRoundStartText : betweenRoundPromptText;
+        }
+
         if (nextRoundCountdownText == null)
         {
             return;

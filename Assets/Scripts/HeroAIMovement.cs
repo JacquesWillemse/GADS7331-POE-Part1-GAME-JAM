@@ -450,7 +450,7 @@ public class HeroAIMovement : MonoBehaviour
                 if (_heroStats.Armor <= lowArmorThreshold) return 35f;
                 return 5f;
             case PickupType.DamageBuff:
-                return _heroStats.IsDamageBuffActive ? 4f : 24f;
+                return _heroStats.BonusDamage >= 10 ? 4f : 24f;
             default:
                 return 0f;
         }

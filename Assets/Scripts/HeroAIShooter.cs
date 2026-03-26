@@ -106,7 +106,7 @@ public class HeroAIShooter : MonoBehaviour
         int shotDamage = projectileDamage;
         if (_heroStats != null)
         {
-            shotDamage = Mathf.Max(1, Mathf.RoundToInt(projectileDamage * _heroStats.CurrentDamageMultiplier));
+            shotDamage = Mathf.Max(1, projectileDamage + _heroStats.BonusDamage);
         }
 
         projectile.Initialize(shotDamage, projectileSpeed, direction.normalized);

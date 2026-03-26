@@ -6,6 +6,7 @@ public class EnemyMover : MonoBehaviour
     [SerializeField] private float moveSpeed = 3.5f;
     [SerializeField] private float stopDistance = 0.1f;
     [SerializeField] private int contactDamage = 10;
+    private bool _alreadyHitHero;
 
     private void Update()
     {
@@ -43,10 +44,19 @@ public class EnemyMover : MonoBehaviour
 
     private void TryDamageHeroAndDie(Collider other)
     {
+        if (_alreadyHitHero)
+        {
+            return;
+        }
+
         HeroStats heroStats = other.GetComponent<HeroStats>();
         if (heroStats == null)
         {
             heroStats = other.GetComponentInParent<HeroStats>();
+        }
+        if (heroStats == null)
+        {
+            heroStats = HeroStats.Instance;
         }
 
         if (heroStats == null)
@@ -54,6 +64,7 @@ public class EnemyMover : MonoBehaviour
             return;
         }
 
+        _alreadyHitHero = true;
         heroStats.TakeDamage(contactDamage);
         Destroy(gameObject);
     }

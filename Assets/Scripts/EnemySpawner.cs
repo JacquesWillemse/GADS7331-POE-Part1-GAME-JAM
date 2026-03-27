@@ -15,10 +15,12 @@ public class EnemySpawner : MonoBehaviour
 
     [Header("Clump Spawning")]
     [SerializeField] private bool enableClumpSpawns = true;
-    [SerializeField, Range(0f, 1f)] private float clumpSpawnChance = 0.25f;
+    [SerializeField, Range(0f, 1f)] private float clumpSpawnChance = 0.15f;
     [SerializeField] private int clumpMinSize = 3;
     [SerializeField] private int clumpMaxSize = 5;
     [SerializeField] private float clumpRadius = 2f;
+    [SerializeField] private float minSecondsBetweenClumps = 3f;
+    [SerializeField] private int minRemainingForClumps = 8;
 
     [Header("Grounding")]
     [SerializeField] private LayerMask groundLayers = ~0;
@@ -31,6 +33,7 @@ public class EnemySpawner : MonoBehaviour
     private int _remainingToSpawn;
     private int[] _remainingByType;
     private float _spawnTimer;
+    private float _nextAllowedClumpTime;
 
     private void Update()
     {
@@ -75,11 +78,19 @@ public class EnemySpawner : MonoBehaviour
     {
         bool canClump = enableClumpSpawns
             && _remainingToSpawn >= clumpMinSize
+            && _remainingToSpawn >= minRemainingForClumps
+            && Time.time >= _nextAllowedClumpTime
             && Random.value <= clumpSpawnChance;
 
         if (canClump)
         {
-            return SpawnClump();
+            int spawned = SpawnClump();
+            if (spawned > 0)
+            {
+                _nextAllowedClumpTime = Time.time + minSecondsBetweenClumps;
+            }
+
+            return spawned;
         }
 
         return SpawnSingle();
@@ -161,9 +172,37 @@ public class EnemySpawner : MonoBehaviour
         }
 
         Vector3 rayStart = requestedPosition + Vector3.up * groundRayStartHeight;
-        if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore))
+        RaycastHit[] hits = Physics.RaycastAll(rayStart, Vector3.down, groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0)
         {
             return;
+        }
+
+        SortHitsByDistance(hits);
+        bool foundGround = false;
+        RaycastHit hit = default;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider c = hits[i].collider;
+            if (c == null)
+            {
+                continue;
+            }
+
+            // Ignore spawned enemies in the ray path so we snap to arena floor.
+            if (c.CompareTag("Enemy") || c.GetComponentInParent<EnemyHealth>() != null)
+            {
+                continue;
+            }
+
+            hit = hits[i];
+            foundGround = true;
+            break;
+        }
+
+        if (!foundGround)
+        {
+            hit = hits[0];
         }
 
         // First place near ground, then align the actual lowest bound to ground height.
@@ -178,6 +217,28 @@ public class EnemySpawner : MonoBehaviour
             float desiredMinY = hit.point.y + totalOffset;
             float correction = desiredMinY - lowestY;
             enemy.transform.position += Vector3.up * correction;
+        }
+    }
+
+    private void SortHitsByDistance(RaycastHit[] hits)
+    {
+        for (int i = 0; i < hits.Length - 1; i++)
+        {
+            int best = i;
+            for (int j = i + 1; j < hits.Length; j++)
+            {
+                if (hits[j].distance < hits[best].distance)
+                {
+                    best = j;
+                }
+            }
+
+            if (best != i)
+            {
+                RaycastHit tmp = hits[i];
+                hits[i] = hits[best];
+                hits[best] = tmp;
+            }
         }
     }
 

@@ -11,11 +11,14 @@ public class RoundManager : MonoBehaviour
     [SerializeField] private EnemySpawner enemySpawner;
     [SerializeField] private int totalRounds = 50;
     [SerializeField] private int budgetPerRoundStep = 5;
-    [SerializeField] private int smallEnemyCost = 2;
-    [SerializeField] private int mediumEnemyCost = 4;
-    [SerializeField] private int largeEnemyCost = 10;
-    [SerializeField] private int mediumUnlockRound = 21;
-    [SerializeField] private int largeUnlockRound = 41;
+    [SerializeField] private int smallEnemyCost = 1;
+    [SerializeField] private int mediumEnemyCost = 2;
+    [SerializeField] private int largeEnemyCost = 4;
+    [SerializeField] private int mediumUnlockRound = 11;
+    [SerializeField] private int largeUnlockRound = 31;
+    [SerializeField] private int smallEnemyWeight = 60;
+    [SerializeField] private int mediumEnemyWeight = 20;
+    [SerializeField] private int largeEnemyWeight = 10;
     [SerializeField] private float nextRoundAutoStartSeconds = 30f;
 
     [Header("UI")]
@@ -142,55 +145,136 @@ public class RoundManager : MonoBehaviour
     {
         int budget = Mathf.Max(0, roundNumber * budgetPerRoundStep);
         int[] costs = new int[3] { Mathf.Max(1, smallEnemyCost), Mathf.Max(1, mediumEnemyCost), Mathf.Max(1, largeEnemyCost) };
+        int[] weights = new int[3] { Mathf.Max(0, smallEnemyWeight), Mathf.Max(0, mediumEnemyWeight), Mathf.Max(0, largeEnemyWeight) };
         bool allowMedium = roundNumber >= mediumUnlockRound;
         bool allowLarge = roundNumber >= largeUnlockRound;
 
         int[] counts = new int[3];
         int[] allowedTypes = allowLarge ? new int[3] { 0, 1, 2 } : (allowMedium ? new int[2] { 0, 1 } : new int[1] { 0 });
+        AllocateBudgetByWeightedTargets(budget, costs, weights, allowedTypes, counts);
+        return counts;
+    }
 
+    private void AllocateBudgetByWeightedTargets(int budget, int[] costs, int[] weights, int[] allowedTypes, int[] counts)
+    {
+        int totalWeight = 0;
+        for (int i = 0; i < allowedTypes.Length; i++)
+        {
+            int type = allowedTypes[i];
+            if (type >= 0 && type < weights.Length)
+            {
+                totalWeight += Mathf.Max(0, weights[type]);
+            }
+        }
+
+        if (totalWeight <= 0)
+        {
+            totalWeight = allowedTypes.Length;
+        }
+
+        float[] targetValues = new float[3];
+        for (int i = 0; i < allowedTypes.Length; i++)
+        {
+            int type = allowedTypes[i];
+            if (type < 0 || type >= costs.Length)
+            {
+                continue;
+            }
+
+            int w = Mathf.Max(0, weights[type]);
+            if (w == 0 && totalWeight == allowedTypes.Length)
+            {
+                w = 1;
+            }
+
+            targetValues[type] = budget * ((float)w / totalWeight);
+        }
+
+        int spent = 0;
+        for (int i = 0; i < allowedTypes.Length; i++)
+        {
+            int type = allowedTypes[i];
+            if (type < 0 || type >= costs.Length)
+            {
+                continue;
+            }
+
+            int c = Mathf.Max(1, costs[type]);
+            counts[type] = Mathf.FloorToInt(targetValues[type] / c);
+            spent += counts[type] * c;
+        }
+
+        int remaining = Mathf.Max(0, budget - spent);
         int safety = 0;
-        while (budget >= costs[0] && safety < 2000)
+        while (remaining >= GetMinimumCostForAllowedTypes(costs, allowedTypes) && safety < 1000)
         {
             safety++;
-            int[] affordable = GetAffordableTypes(allowedTypes, costs, budget);
-            if (affordable.Length == 0)
+            int pick = PickBestTypeForRemaining(remaining, costs, allowedTypes, counts, targetValues);
+            if (pick < 0)
             {
                 break;
             }
 
-            int pick = affordable[Random.Range(0, affordable.Length)];
             counts[pick]++;
-            budget -= costs[pick];
+            remaining -= costs[pick];
         }
-
-        return counts;
     }
 
-    private int[] GetAffordableTypes(int[] allowedTypes, int[] costs, int budget)
+    private int GetMinimumCostForAllowedTypes(int[] costs, int[] allowedTypes)
     {
-        int count = 0;
+        int minCost = int.MaxValue;
         for (int i = 0; i < allowedTypes.Length; i++)
         {
             int type = allowedTypes[i];
-            if (type >= 0 && type < costs.Length && costs[type] <= budget)
+            if (type < 0 || type >= costs.Length)
             {
-                count++;
+                continue;
+            }
+
+            int c = Mathf.Max(1, costs[type]);
+            if (c < minCost)
+            {
+                minCost = c;
             }
         }
 
-        int[] affordable = new int[count];
-        int at = 0;
+        return minCost == int.MaxValue ? 1 : minCost;
+    }
+
+    private int PickBestTypeForRemaining(int remaining, int[] costs, int[] allowedTypes, int[] counts, float[] targetValues)
+    {
+        int bestType = -1;
+        float bestScore = float.NegativeInfinity;
         for (int i = 0; i < allowedTypes.Length; i++)
         {
             int type = allowedTypes[i];
-            if (type >= 0 && type < costs.Length && costs[type] <= budget)
+            if (type < 0 || type >= costs.Length)
             {
-                affordable[at] = type;
-                at++;
+                continue;
+            }
+
+            int c = Mathf.Max(1, costs[type]);
+            if (c > remaining)
+            {
+                continue;
+            }
+
+            float currentValue = counts[type] * c;
+            float deficit = targetValues[type] - currentValue;
+            float score = deficit;
+            if (deficit < 0f)
+            {
+                score = deficit - c * 0.1f;
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestType = type;
             }
         }
 
-        return affordable;
+        return bestType;
     }
 
     private void UpdateRoundUI()

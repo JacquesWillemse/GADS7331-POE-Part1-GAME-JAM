@@ -13,6 +13,7 @@ public class HeroAIShooter : MonoBehaviour
     [SerializeField] private float projectileSpeed = 12f;
     [SerializeField] private int projectileDamage = 1;
     [SerializeField] private int ammoPerShot = 1;
+    [SerializeField] private float projectileYawOffsetDegrees = 90f;
 
     private float _nextShotTime;
     private HeroStats _heroStats;
@@ -101,7 +102,8 @@ public class HeroAIShooter : MonoBehaviour
             direction = transform.forward;
         }
 
-        Quaternion rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        Quaternion rotation = Quaternion.LookRotation(direction.normalized, Vector3.up)
+            * Quaternion.Euler(0f, projectileYawOffsetDegrees, 0f);
         Projectile projectile = Instantiate(projectilePrefab, firePoint.position, rotation);
         int shotDamage = projectileDamage;
         if (_heroStats != null)

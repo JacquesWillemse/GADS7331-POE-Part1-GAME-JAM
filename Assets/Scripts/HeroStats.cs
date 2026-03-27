@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class HeroStats : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class HeroStats : MonoBehaviour
     [SerializeField] private int maxHealth = 100;
     [SerializeField] private int maxArmor = 100;
     [SerializeField] private int maxAmmo = 150;
+    [SerializeField] private float restartDelaySeconds = 1f;
 
     public int Money { get; private set; }
     public int Health { get; private set; }
@@ -26,6 +28,7 @@ public class HeroStats : MonoBehaviour
     public float HealthPercent => maxHealth > 0 ? (float)Health / maxHealth : 0f;
 
     public event Action OnStatsChanged;
+    private bool _isDead;
 
     private void Awake()
     {
@@ -107,6 +110,10 @@ public class HeroStats : MonoBehaviour
         {
             return;
         }
+        if (_isDead)
+        {
+            return;
+        }
 
         int remainingDamage = amount;
         if (Armor > 0)
@@ -122,6 +129,11 @@ public class HeroStats : MonoBehaviour
         }
 
         NotifyStatsChanged();
+
+        if (Health <= 0)
+        {
+            HandleHeroDeath();
+        }
     }
 
     public void AddHealth(int amount)
@@ -184,5 +196,22 @@ public class HeroStats : MonoBehaviour
     private void NotifyStatsChanged()
     {
         OnStatsChanged?.Invoke();
+    }
+
+    private void HandleHeroDeath()
+    {
+        if (_isDead)
+        {
+            return;
+        }
+
+        _isDead = true;
+        Invoke(nameof(ReloadCurrentScene), Mathf.Max(0f, restartDelaySeconds));
+    }
+
+    private void ReloadCurrentScene()
+    {
+        Scene currentScene = SceneManager.GetActiveScene();
+        SceneManager.LoadScene(currentScene.buildIndex);
     }
 }

@@ -47,17 +47,37 @@ public class HeroFollowCamera : MonoBehaviour
 
         if (keyboard.rightArrowKey.wasPressedThisFrame)
         {
-            _currentViewIndex = (_currentViewIndex + 1) % cameraAnchors.Length;
+            RotateRight();
         }
         else if (keyboard.leftArrowKey.wasPressedThisFrame)
         {
-            _currentViewIndex = (_currentViewIndex - 1 + cameraAnchors.Length) % cameraAnchors.Length;
+            RotateLeft();
         }
     }
 
     public void SetHeroTarget(Transform target)
     {
         heroTarget = target;
+    }
+
+    public void RotateRight()
+    {
+        if (cameraAnchors == null || cameraAnchors.Length == 0)
+        {
+            return;
+        }
+
+        _currentViewIndex = (_currentViewIndex + 1) % cameraAnchors.Length;
+    }
+
+    public void RotateLeft()
+    {
+        if (cameraAnchors == null || cameraAnchors.Length == 0)
+        {
+            return;
+        }
+
+        _currentViewIndex = (_currentViewIndex - 1 + cameraAnchors.Length) % cameraAnchors.Length;
     }
 
     private Transform GetCurrentAnchor()
